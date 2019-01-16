@@ -1,0 +1,5 @@
+name: quotient
+include: src
+depend:
+  cubical
+  standard-library
