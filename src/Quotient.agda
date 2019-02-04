@@ -5,6 +5,8 @@ module Quotient where
 import Cubical.Foundations.Equiv as ≃
 open import Cubical.Foundations.NTypes
 open import Cubical.Core.Everything hiding (module Σ)
+open import Data.List as List using (List; []; _∷_)
+open import Data.List.All as All using (All; []; _∷_)
 open import Data.Product as Σ using (Σ; _×_; _,_; proj₁; proj₂)
 open import Data.Product.Relation.Pointwise.NonDependent
 open import Function
@@ -155,8 +157,8 @@ map-inv {A = A} {B} {R} {S} f g d e p (uip x y r s i j) =
 isoToEquiv : ∀
   {a b r s} {A : Set a} {B : Set b} {R : A → A → Set r} {S : B → B → Set s} →
   (f : A → B) (g : B → A) →
-  (d : ∀ x y → R x y → S (f x) (f y)) (e : ∀ x y → S x y → R (g x) (g y))
-  (p : ∀ x → R (g (f x)) x) (q : ∀ y → S (f (g y)) y) →
+  (∀ x y → R x y → S (f x) (f y)) → (∀ x y → S x y → R (g x) (g y)) →
+  (∀ x → R (g (f x)) x) → (∀ y → S (f (g y)) y) →
   (A / R) ≃ (B / S)
 isoToEquiv f g d e p q =
   ≃.isoToEquiv
@@ -203,3 +205,133 @@ curry : ∀
   (A / R → B / S → C) →
   A × B / Pointwise R S → C
 curry f x = f (proj₁ (unzip x)) (proj₂ (unzip x))
+
+swap : ∀
+  {a b r s} {A : Set a} {B : Set b} {R : A → A → Set r} {S : B → B → Set s} →
+  A × B / Pointwise R S →
+  B × A / Pointwise S R
+swap = map Σ.swap λ _ _ → Σ.swap
+
+⟦⟧-≗ : ∀
+  {a b r} {A : Set a} {B : Set b} {R : A → A → Set r} →
+  isSet B →
+  (f g : A / R → B) →
+  (∀ x → f ⟦ x ⟧ ≡ g ⟦ x ⟧) →
+  ∀ x → f x ≡ g x
+⟦⟧-≗ u f g p ⟦ x ⟧ = p x
+⟦⟧-≗ u f g p (equiv x y q i) j =
+  set-fillSquare u
+    (p x) (p y)
+    (cong f (equiv x y q)) (cong g (equiv x y q))
+    i j
+⟦⟧-≗ u f g p (uip x y q r i j) =
+  set-fillCube u _ _ _ _ _ _ _ _ _ _ _ _
+    (cong (cong f) (uip x y q r))
+    (cong (cong g) (uip x y q r))
+    (cong (⟦⟧-≗ u f g p) q)
+    (cong (⟦⟧-≗ u f g p) r)
+    refl refl
+    i j
+
+⟦⟧-≡ : ∀
+  {a b r} {A : Set a} {B : Set b} {R : A → A → Set r} →
+  isSet B →
+  (f g : A / R → B) →
+  (∀ x → f ⟦ x ⟧ ≡ g ⟦ x ⟧) →
+  f ≡ g
+⟦⟧-≡ u f g p = funExt (⟦⟧-≗ u f g p)
+
+⟦⟧-≡₂ : ∀
+  {a b c r s}
+  {A : Set a} {B : Set b} {C : Set c}
+  {R : A → A → Set r} {S : B → B → Set s} →
+  isSet C →
+  (f g : A / R → B / S → C) →
+  (∀ x y → f ⟦ x ⟧ ⟦ y ⟧ ≡ g ⟦ x ⟧ ⟦ y ⟧) →
+  f ≡ g
+⟦⟧-≡₂ u f g p =
+  funExt λ x →
+    cong (_$ x) $
+      ⟦⟧-≡ (→-isSet u) f g
+        λ y → funExt λ z →
+          cong (_$ z) $
+            ⟦⟧-≡ u (f ⟦ y ⟧) (g ⟦ y ⟧) (p y)
+
+⟦⟧-≗₂ : ∀
+  {a b c r s}
+  {A : Set a} {B : Set b} {C : Set c}
+  {R : A → A → Set r} {S : B → B → Set s} →
+  isSet C →
+  (f g : A / R → B / S → C) →
+  (∀ x y → f ⟦ x ⟧ ⟦ y ⟧ ≡ g ⟦ x ⟧ ⟦ y ⟧) →
+  ∀ x y → f x y ≡ g x y
+⟦⟧-≗₂ u f g p x y = cong (λ z → z x y) (⟦⟧-≡₂ u f g p)
+
+⟦⟧-≡₃ : ∀
+  {a b c d r s t}
+  {A : Set a} {B : Set b} {C : Set c} {D : Set d}
+  {R : A → A → Set r} {S : B → B → Set s} {T : C → C → Set t} →
+  isSet D →
+  (f g : A / R → B / S → C / T → D) →
+  (∀ x y z → f ⟦ x ⟧ ⟦ y ⟧ ⟦ z ⟧ ≡ g ⟦ x ⟧ ⟦ y ⟧ ⟦ z ⟧) →
+  f ≡ g
+⟦⟧-≡₃ u f g p =
+  funExt λ x →
+    ⟦⟧-≡₂ u (f x) (g x)
+      λ y z →
+        cong (_$ x) $
+          ⟦⟧-≡ u
+            (λ u → f u ⟦ y ⟧ ⟦ z ⟧) (λ u → g u ⟦ y ⟧ ⟦ z ⟧)
+            (λ u → p u y z)
+
+⟦⟧-≗₃ : ∀
+  {a b c d r s t}
+  {A : Set a} {B : Set b} {C : Set c} {D : Set d}
+  {R : A → A → Set r} {S : B → B → Set s} {T : C → C → Set t} →
+  isSet D →
+  (f g : A / R → B / S → C / T → D) →
+  (∀ x y z → f ⟦ x ⟧ ⟦ y ⟧ ⟦ z ⟧ ≡ g ⟦ x ⟧ ⟦ y ⟧ ⟦ z ⟧) →
+  ∀ x y z → f x y z ≡ g x y z
+⟦⟧-≗₃ u f g p x y z = cong (λ h → h x y z) (⟦⟧-≡₃ u f g p)
+
+uncurry-curry : ∀
+  {a b c r s}
+  {A : Set a} {B : Set b} {C : Set c}
+  {R : A → A → Set r} {S : B → B → Set s} →
+  (reflA : Reflexive R) (reflB : Reflexive S) →
+  isSet C →
+  (f : A / R → B / S → C) →
+  uncurry reflA reflB (curry f) ≡ f
+uncurry-curry reflA reflB u f = ⟦⟧-≡₂ u _ _ λ _ _ → refl
+
+curry-uncurry : ∀
+  {a b c r s} {A : Set a} {B : Set b} {C : Set c} {R : A → A → Set r} {S : B → B → Set s} →
+  (reflA : Reflexive R) (reflB : Reflexive S) →
+  isSet C →
+  (f : A × B / Pointwise R S → C) →
+  curry (uncurry reflA reflB f) ≡ f
+curry-uncurry reflA reflB u f = ⟦⟧-≡ u _ _ λ _ → refl
+
+map-≡ : ∀
+  {a b r s} {A : Set a} {B : Set b} {R : A → A → Set r} {S : B → B → Set s} →
+  Reflexive R →
+  (f g : A → B) →
+  (d : ∀ x y → R x y → S (f x) (f y)) (e : ∀ x y → R x y → S (g x) (g y)) →
+  (∀ x y → R x y → S (f x) (g y)) →
+  (x : A / R) → map {S = S} f d x ≡ map g e x
+map-≡ reflA f g d e p ⟦ x ⟧ = equiv _ _ (p x x reflA)
+map-≡ reflA f g d e p (equiv x y q i) =
+  set-fillSquare uip
+    (equiv (f x) (g x) (p x x reflA))
+    (equiv (f y) (g y) (p y y reflA))
+    (equiv (f x) (f y) (d x y q))
+    (equiv (g x) (g y) (e x y q))
+    i
+map-≡ {A = A} {B} {R} {S} reflA f g d e p (uip x y q r i j) =
+  set-fillCube uip _ _ _ _ _ _ _ _ _ _ _ _
+    (uip _ _ (cong (map f d) q) (cong (map f d) r))
+    (uip _ _ (cong (map g e) q) (cong (map g e) r))
+    (cong (map-≡ reflA f g d e p) q)
+    (cong (map-≡ reflA f g d e p) r)
+    refl refl
+    i j
