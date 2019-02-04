@@ -2,4 +2,4 @@ name: quotient
 include: src
 depend:
   cubical
-  standard-library
+  standard-library-dev
